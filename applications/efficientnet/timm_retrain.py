@@ -57,7 +57,7 @@ from timm.utils import ApexScaler, NativeScaler
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 
 from mmrazor.models.architectures.backbones.scalenet.timm_arch import scale_net_timm
-from dms_eff import (
+from dms_efficientnet import (
     EffDmsAlgorithm,
     TeacherStudentDistillNet,
     TeacherStudentDistillNetDIST,
@@ -930,8 +930,8 @@ group.add_argument("--pruned", type=str, default="")
 group.add_argument("--sub_space", type=str, default="")
 group.add_argument("--reset", type=str, default="false")
 group.add_argument("--target", type=float, default=-1)
-group.add_argument("--distill", type=str, default="False")
-group.add_argument("--latency", type=str, default="False")
+group.add_argument("--distill", type=str, default="false")
+group.add_argument("--latency", type=str, default="false")
 
 
 def _parse_args():
