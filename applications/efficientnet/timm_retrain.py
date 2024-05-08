@@ -56,7 +56,6 @@ from timm.scheduler import create_scheduler_v2, scheduler_kwargs
 from timm.utils import ApexScaler, NativeScaler
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 
-from mmrazor.models.architectures.backbones.scalenet.timm_arch import scale_net_timm
 from dms_efficientnet import (
     EffDmsAlgorithm,
     TeacherStudentDistillNet,
@@ -1640,8 +1639,9 @@ def train_one_epoch(
                 output = model(input)
                 loss = loss_fn(output, target)
                 ############################################################################################
-                if isinstance(model.module, TeacherStudentDistillNet):
-                    dist_loss = model.module.compute_ts_distill_loss()
+                base_model = model if not hasattr(model, "module") else model.module
+                if isinstance(base_model, TeacherStudentDistillNet):
+                    dist_loss = base_model.compute_ts_distill_loss()
                     if isinstance(dist_loss, tuple):
                         ts_feature_loss, ts_logit_loss = dist_loss
                         dist_loss = ts_feature_loss + ts_logit_loss
