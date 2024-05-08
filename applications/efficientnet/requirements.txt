@@ -1,0 +1,8 @@
+torch==1.13.1+cu117
+torchvision==0.14.1+cu117
+torchaudio==0.13.1
+mmrazor==1.0.0
+timm==0.9.2
+mmcv==2.0.1
+joblib
+mmcls== 1.0.0rc6
