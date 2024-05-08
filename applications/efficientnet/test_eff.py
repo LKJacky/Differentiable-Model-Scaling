@@ -6,8 +6,6 @@ from timm.models.efficientnet import efficientnet_b0
 class TestEffDms(unittest.TestCase):
     def test_init(self):
         model = efficientnet_b0(drop_path_rate=0.3, drop_rate=0.2)
-        print(model)
-
         algo = EffDmsAlgorithm(
             model,
             mutator_kwargs=dict(
