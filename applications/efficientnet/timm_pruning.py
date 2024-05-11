@@ -56,17 +56,12 @@ from timm.scheduler import create_scheduler_v2, scheduler_kwargs
 from timm.utils import ApexScaler, NativeScaler
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 
-from mmrazor.models.architectures.backbones.scalenet.timm_arch import scale_net_timm
 from mmrazor.utils import print_log
 from dms_efficientnet import EffDmsAlgorithm
 from dms_efficientnet import (
     EffDmsAlgorithm,
-    replaece_InvertedResidual_forward,
-    replaece_Mult_forward,
 )
 
-replaece_InvertedResidual_forward()
-replaece_Mult_forward()
 DEBUG = os.environ.get("DEBUG", "false") == "true"
 
 try:
