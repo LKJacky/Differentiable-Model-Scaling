@@ -64,7 +64,8 @@ class DynamicBatchNormAct2d(BatchNormAct2d, DynamicBatchNormMixin):
     def to_static_op(self: _BatchNorm) -> BatchNormAct2d:
         running_mean, running_var, weight, bias = self.get_dynamic_params()
         if "num_features" in self.mutable_attrs:
-            num_features = self.mutable_attrs["num_features"].current_mask.sum().item()
+            num_features = self.mutable_attrs["num_features"].current_mask.sum(
+            ).item()
         else:
             num_features = self.num_features
 
@@ -80,10 +81,12 @@ class DynamicBatchNormAct2d(BatchNormAct2d, DynamicBatchNormMixin):
 
         if running_mean is not None:
             static_bn.running_mean.copy_(running_mean)
-            static_bn.running_mean = static_bn.running_mean.to(running_mean.device)
+            static_bn.running_mean = static_bn.running_mean.to(
+                running_mean.device)
         if running_var is not None:
             static_bn.running_var.copy_(running_var)
-            static_bn.running_var = static_bn.running_var.to(running_var.device)
+            static_bn.running_var = static_bn.running_var.to(
+                running_var.device)
         if weight is not None:
             static_bn.weight = nn.Parameter(weight)
         if bias is not None:
@@ -124,7 +127,8 @@ class DynamicBatchNormAct2d(BatchNormAct2d, DynamicBatchNormMixin):
             if self.num_batches_tracked is not None:  # type: ignore[has-type]
                 self.num_batches_tracked.add_(1)  # type: ignore[has-type]
                 if self.momentum is None:  # use cumulative moving average
-                    exponential_average_factor = 1.0 / float(self.num_batches_tracked)
+                    exponential_average_factor = 1.0 / \
+                        float(self.num_batches_tracked)
                 else:  # use exponential moving average
                     exponential_average_factor = self.momentum
         r"""
@@ -134,7 +138,8 @@ class DynamicBatchNormAct2d(BatchNormAct2d, DynamicBatchNormMixin):
         if self.training:
             bn_training = True
         else:
-            bn_training = (self.running_mean is None) and (self.running_var is None)
+            bn_training = (self.running_mean is None) and (
+                self.running_var is None)
         r"""
         Buffers are only updated if they are to be tracked and we are in training mode. Thus they only need to be
         passed when the update should occur (i.e. in training mode when they are tracked), or when buffer stats are
@@ -324,7 +329,8 @@ class EffDmsAlgorithm(DmsGeneralAlgorithm):
             type="DTPAMutator",
             channel_unit_cfg=dict(
                 type="DTPTUnit",
-                default_args=dict(extra_mapping={BatchNormAct2d: ImpBatchNormAct2d}),
+                default_args=dict(
+                    extra_mapping={BatchNormAct2d: ImpBatchNormAct2d}),
             ),
             parse_cfg=dict(
                 _scope_="mmrazor",
@@ -350,12 +356,12 @@ class EffDmsAlgorithm(DmsGeneralAlgorithm):
         flop_loss_weight=1000,
         structure_log_interval=1000,
         by_epoch=True,
-        target_scheduler="cos",
     )
 
     expand_unit_config = dict(
         type="ExpandableUnit",
-        default_args=dict(extra_mapping={BatchNormAct2d: ExpandableBatchNormAct2d}),
+        default_args=dict(
+            extra_mapping={BatchNormAct2d: ExpandableBatchNormAct2d}),
     )
 
     def __init__(
@@ -438,64 +444,6 @@ class EffDmsAlgorithm(DmsGeneralAlgorithm):
             save_model, mutator_kwargs=mutator_kwargs, scheduler_kargs=scheduler_kargs
         )
         return new_algo
-
-
-class MyScheduler(Scheduler):
-    def __init__(
-        self,
-        optimizer,
-        num_epoch=10,
-        cycle_epoch=5,
-        decay=0.5,
-        warmup_t=0,
-        warmup_lr_init=0,
-        t_in_epochs: bool = True,
-        noise_range_t=None,
-        noise_type="normal",
-        noise_pct=0.67,
-        noise_std=1,
-        noise_seed=None,
-        initialize: bool = True,
-    ) -> None:
-        super().__init__(
-            optimizer,
-            "lr",
-            t_in_epochs,
-            noise_range_t,
-            noise_type,
-            noise_pct,
-            noise_std,
-            noise_seed,
-            initialize,
-        )
-
-        self.warmup_t = warmup_t
-        self.warmup_lr_init = warmup_lr_init
-
-        if self.warmup_t:
-            self.warmup_steps = [
-                (v - warmup_lr_init) / self.warmup_t for v in self.base_values
-            ]
-            init_lr = [self.warmup_lr_init] * len(self.base_values)
-            init_lr[-1] = self.base_values[-1]
-            super().update_groups(init_lr)
-        else:
-            self.warmup_steps = [1 for _ in self.base_values]
-
-        self.num_epoch = num_epoch
-        self.cycle_epoch = cycle_epoch
-        self.decay = decay
-
-    def _get_lr(self, t: int) -> float:
-        if t < self.warmup_t:
-            lrs = [self.warmup_lr_init + t * s for s in self.warmup_steps]
-        else:
-            t = t - self.warmup_t
-            t = t % self.cycle_epoch
-            lrs = [lr * (self.decay**t) for lr in self.base_values]
-        lrs[-1] = self.base_values[-1]
-        return lrs
-
 
 # Distillation ####################################################################################
 
@@ -594,7 +542,8 @@ class TeacherStudentDistillNetDIST(nn.Module):
             self.teacher_logit = self.teacher_model(teacher_x)
 
         if x.shape[2] != self.input_image_size:
-            student_x = F.interpolate(x, self.input_image_size, mode="bilinear")
+            student_x = F.interpolate(
+                x, self.input_image_size, mode="bilinear")
         else:
             student_x = x
         self.student_logit = self.student_model(student_x)

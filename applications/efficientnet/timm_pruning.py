@@ -124,7 +124,8 @@ parser.add_argument(
     const=None,
     help="path to dataset (positional is *deprecated*, use --data-dir)",
 )
-parser.add_argument("--data-dir", metavar="DIR", help="path to dataset (root dir)")
+parser.add_argument("--data-dir", metavar="DIR",
+                    help="path to dataset (root dir)")
 parser.add_argument(
     "--dataset",
     metavar="NAME",
@@ -305,7 +306,8 @@ group.add_argument(
     action="store_true",
     help="enable experimental fast-norm",
 )
-group.add_argument("--model-kwargs", nargs="*", default={}, action=utils.ParseKwargs)
+group.add_argument("--model-kwargs", nargs="*",
+                   default={}, action=utils.ParseKwargs)
 group.add_argument(
     "--head-init-scale", default=None, type=float, help="Head initialization scale"
 )
@@ -383,7 +385,8 @@ group.add_argument(
     default=None,
     help="layer-wise learning rate decay (default: None)",
 )
-group.add_argument("--opt-kwargs", nargs="*", default={}, action=utils.ParseKwargs)
+group.add_argument("--opt-kwargs", nargs="*",
+                   default={}, action=utils.ParseKwargs)
 
 # Learning rate schedule parameters
 group = parser.add_argument_group("Learning rate schedule parameters")
@@ -768,7 +771,8 @@ group.add_argument(
 )
 
 # Model Exponential Moving Average
-group = parser.add_argument_group("Model exponential moving average parameters")
+group = parser.add_argument_group(
+    "Model exponential moving average parameters")
 group.add_argument(
     "--model-ema",
     action="store_true",
@@ -918,13 +922,9 @@ group.add_argument(
 # for dms
 group = parser.add_argument_group("dms")
 group.add_argument("--target", type=float, default=1.0)
-group.add_argument("--sub_space", type=str, default="")
 group.add_argument("--mutator_lr", type=float, default=4e-4)
 group.add_argument("--loss_weight", type=float, default=100)
-group.add_argument("--target_scheduler", type=str, default="cos")
-group.add_argument("--cycle_lr", type=str, default="false")
-group.add_argument("--loss_type", type=str, default="l2")
-group.add_argument("--latency", type=str, default="false")
+group.add_argument("--skip_full_target", action='store_true')
 
 
 def _parse_args():
@@ -992,7 +992,8 @@ def main():
             f"Process {args.rank}, total {args.world_size}, device {args.device}."
         )
     else:
-        _logger.info(f"Training with a single process on 1 device ({args.device}).")
+        _logger.info(
+            f"Training with a single process on 1 device ({args.device}).")
     assert args.rank >= 0
 
     # resolve AMP arguments based on PyTorch / Apex availability
@@ -1080,34 +1081,10 @@ def main():
 
     #######################################################################################################
     # build algorithm
-
-    if args.sub_space != "":
-        algorithm = EffDmsAlgorithm(
-            model,
-            scheduler_kargs=dict(
-                flops_target=args.target,
-                decay_ratio=0.8,
-                refine_ratio=0.2,
-                flop_loss_weight=args.loss_weight,
-                structure_log_interval=1000,
-                by_epoch=True,
-                target_scheduler="cos",
-            ),
-        )
-        subspace = torch.load(args.sub_space, map_location="cpu")["state_dict"]
-        algorithm.load_state_dict(subspace)
-        model = algorithm.to_static_model(
-            drop_path=args.drop_path, head_dropout=args.head_dropout
-        )
-        print(model)
-    if args.latency == "false":
-        init_fun = EffDmsAlgorithm
-    else:
-        init_fun = EffDmsAlgorithm.init_fold_algo
-    algorithm = init_fun(
+    algorithm = EffDmsAlgorithm(
         model,
         mutator_kwargs=dict(
-            type="DMSMutator" if args.latency == "false" else "EffLatencyMutator",
+            type="DMSMutator",
             dtp_mutator_cfg=dict(
                 parse_cfg=dict(
                     demo_input=dict(
@@ -1128,8 +1105,7 @@ def main():
             flop_loss_weight=args.loss_weight,
             structure_log_interval=1000,
             by_epoch=True,
-            target_scheduler=args.target_scheduler,
-            loss_type=args.loss_type,
+            skip_full_target=args.skip_full_target,
         ),
     )
     model = algorithm
@@ -1183,7 +1159,8 @@ def main():
     from timm.optim.optim_factory import param_groups_weight_decay
 
     parameters = [
-        *param_groups_weight_decay(model.architecture, weight_decay=args.weight_decay),
+        *param_groups_weight_decay(model.architecture,
+                                   weight_decay=args.weight_decay),
         {
             "params": model.mutator.parameters(),
             "lr": args.mutator_lr,
@@ -1214,7 +1191,8 @@ def main():
             # loss scaler only used for float16 (half) dtype, bfloat16 does not need it
             loss_scaler = NativeScaler()
         if utils.is_primary(args):
-            _logger.info("Using native Torch AMP. Training in mixed precision.")
+            _logger.info(
+                "Using native Torch AMP. Training in mixed precision.")
     else:
         if utils.is_primary(args):
             _logger.info("AMP not enabled. Training in float32.")
@@ -1388,7 +1366,8 @@ def main():
     elif mixup_active:
         # smoothing is handled with mixup target transform which outputs sparse, soft targets
         if args.bce_loss:
-            train_loss_fn = BinaryCrossEntropy(target_threshold=args.bce_target_thresh)
+            train_loss_fn = BinaryCrossEntropy(
+                target_threshold=args.bce_target_thresh)
         else:
             train_loss_fn = SoftTargetCrossEntropy()
     elif args.smoothing:
@@ -1397,7 +1376,8 @@ def main():
                 smoothing=args.smoothing, target_threshold=args.bce_target_thresh
             )
         else:
-            train_loss_fn = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
+            train_loss_fn = LabelSmoothingCrossEntropy(
+                smoothing=args.smoothing)
     else:
         train_loss_fn = nn.CrossEntropyLoss()
     train_loss_fn = train_loss_fn.to(device=device)
@@ -1449,43 +1429,27 @@ def main():
 
     # setup learning rate schedule and starting epoch
     ########################################################################################
-    if args.cycle_lr != "true":
 
-        def get_lr_wrapper(scheduler, old_get_lr):
+    def get_lr_wrapper(scheduler, old_get_lr):
 
-            def _get_lr(t: int):
-                res = old_get_lr(t)
-                res[-1] = scheduler.base_values[-1]
-                return res
+        def _get_lr(t: int):
+            res = old_get_lr(t)
+            res[-1] = scheduler.base_values[-1]
+            return res
 
-            return _get_lr
+        return _get_lr
 
-        updates_per_epoch = (
-            len(loader_train) + args.grad_accum_steps - 1
-        ) // args.grad_accum_steps
-        lr_scheduler, num_epochs = create_scheduler_v2(
-            optimizer,
-            **scheduler_kwargs(args),
-            updates_per_epoch=updates_per_epoch,
-        )
-        lr_scheduler._get_lr = get_lr_wrapper(lr_scheduler, lr_scheduler._get_lr)
-        optimizer.param_groups[-1]["lr"] = lr_scheduler.base_values[-1]
-    else:
-        print_log("use MySchoduler")
-        from dms_eff import MyScheduler
-
-        lr_scheduler = MyScheduler(
-            optimizer,
-            warmup_t=5,
-            warmup_lr_init=1e-6,
-            num_epoch=30,
-            decay=0.28,
-            cycle_epoch=5,
-        )
-        # for i in range(30):
-        #     lr_scheduler.step(i)
-        #     print_log(f"{i}, {optimizer.param_groups[0]['lr']}")
-        num_epochs = args.epochs
+    updates_per_epoch = (
+        len(loader_train) + args.grad_accum_steps - 1
+    ) // args.grad_accum_steps
+    lr_scheduler, num_epochs = create_scheduler_v2(
+        optimizer,
+        **scheduler_kwargs(args),
+        updates_per_epoch=updates_per_epoch,
+    )
+    lr_scheduler._get_lr = get_lr_wrapper(
+        lr_scheduler, lr_scheduler._get_lr)
+    optimizer.param_groups[-1]["lr"] = lr_scheduler.base_values[-1]
     ########################################################################################
     start_epoch = 0
     if args.start_epoch is not None:
@@ -1529,8 +1493,10 @@ def main():
 
             if args.distributed and args.dist_bn in ("broadcast", "reduce"):
                 if utils.is_primary(args):
-                    _logger.info("Distributing BatchNorm running means and vars")
-                utils.distribute_bn(model, args.world_size, args.dist_bn == "reduce")
+                    _logger.info(
+                        "Distributing BatchNorm running means and vars")
+                utils.distribute_bn(model, args.world_size,
+                                    args.dist_bn == "reduce")
 
             eval_metrics = validate(
                 model,
@@ -1557,7 +1523,8 @@ def main():
                 eval_metrics = ema_eval_metrics
 
             if output_dir is not None:
-                lrs = [param_group["lr"] for param_group in optimizer.param_groups]
+                lrs = [param_group["lr"]
+                       for param_group in optimizer.param_groups]
                 utils.update_summary(
                     epoch,
                     train_metrics,
@@ -1583,7 +1550,8 @@ def main():
         pass
 
     if best_metric is not None:
-        _logger.info("*** Best metric: {0} (epoch {1})".format(best_metric, best_epoch))
+        _logger.info(
+            "*** Best metric: {0} (epoch {1})".format(best_metric, best_epoch))
 
 
 def train_one_epoch(
@@ -1608,7 +1576,8 @@ def train_one_epoch(
         elif mixup_fn is not None:
             mixup_fn.mixup_enabled = False
 
-    second_order = hasattr(optimizer, "is_second_order") and optimizer.is_second_order
+    second_order = hasattr(
+        optimizer, "is_second_order") and optimizer.is_second_order
     has_no_sync = hasattr(model, "no_sync")
     update_time_m = utils.AverageMeter()
     data_time_m = utils.AverageMeter()
@@ -1753,7 +1722,8 @@ def train_one_epoch(
 
             if args.distributed:
                 reduced_loss = utils.reduce_tensor(loss.data, args.world_size)
-                losses_m.update(reduced_loss.item() * accum_steps, input.size(0))
+                losses_m.update(reduced_loss.item() *
+                                accum_steps, input.size(0))
                 update_sample_count *= args.world_size
 
             if utils.is_primary(args):
@@ -1776,7 +1746,8 @@ def train_one_epoch(
                 if args.save_images and output_dir:
                     torchvision.utils.save_image(
                         input,
-                        os.path.join(output_dir, "train-batch-%d.jpg" % batch_idx),
+                        os.path.join(
+                            output_dir, "train-batch-%d.jpg" % batch_idx),
                         padding=0,
                         normalize=True,
                     )
@@ -1789,7 +1760,8 @@ def train_one_epoch(
             saver.save_recovery(epoch, batch_idx=update_idx)
 
         if lr_scheduler is not None:
-            lr_scheduler.step_update(num_updates=num_updates, metric=losses_m.avg)
+            lr_scheduler.step_update(
+                num_updates=num_updates, metric=losses_m.avg)
 
         update_sample_count = 0
         data_start_time = time.time()
@@ -1838,8 +1810,9 @@ def validate(
                 # augmentation reduction
                 reduce_factor = args.tta
                 if reduce_factor > 1:
-                    output = output.unfold(0, reduce_factor, reduce_factor).mean(dim=2)
-                    target = target[0 : target.size(0) : reduce_factor]
+                    output = output.unfold(
+                        0, reduce_factor, reduce_factor).mean(dim=2)
+                    target = target[0: target.size(0): reduce_factor]
 
                 loss = loss_fn(output, target)
             acc1, acc5 = utils.accuracy(output, target, topk=(1, 5))

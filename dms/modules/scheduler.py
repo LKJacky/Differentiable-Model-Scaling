@@ -8,8 +8,6 @@ from mmrazor.registry import TASK_UTILS
 from mmrazor.utils import print_log
 from .dtp import BaseDTPMutator
 from .mutator import DMSMutator
-import os
-TRY = os.environ.get('TRY', 'false') == 'true'
 
 
 @TASK_UTILS.register_module()
@@ -26,13 +24,15 @@ class DMSScheduler():
                  flop_loss_weight=1,
                  by_epoch=False,
                  step=1,
-                 target_scheduler='linear',
-                 loss_type='l2',
+                 target_scheduler='root',
+                 loss_type='log',
                  structure_log_interval=100,
                  grad_scale=-1.0,
                  train_model=True,
                  pretrain_step=0,
-                 negative_flop_loss=False) -> None:
+                 negative_flop_loss=False,
+                 skip_full_target=False,
+                 ) -> None:
 
         self.grad_scale = grad_scale
 
@@ -65,6 +65,8 @@ class DMSScheduler():
         self.pretrain_step = pretrain_step
         self.negative_flop_loss = negative_flop_loss
 
+        self.skip_full_target = skip_full_target
+
     def _init(self):
         self.mutator.prepare_from_supernet(self.model)
         self.mutator.init_quick_flop(self.model)
@@ -85,7 +87,7 @@ class DMSScheduler():
         if self.train_model is False:
             self.model.eval()
             for module in self.model.modules():
-                if isinstance(module,nn.BatchNorm2d):
+                if isinstance(module, nn.BatchNorm2d):
                     module.train()
         else:
             self.model.train()
@@ -127,7 +129,7 @@ class DMSScheduler():
         return ratio
 
     def current_target(self, iter, epoch, max_iters, max_epochs):
-        if TRY:
+        if self.skip_full_target:
             epoch = epoch + 1
 
         def get_target(train_ratio, final_target=self.flops_target):
