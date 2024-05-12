@@ -15,6 +15,7 @@ NVIDIA CUDA specific speedups adopted from NVIDIA Apex examples
 Hacked together by / Copyright 2020 Ross Wightman (https://github.com/rwightman)
 """
 # flake8: noqa
+from mmrazor.utils import print_log
 import argparse
 import logging
 import os
@@ -56,13 +57,7 @@ from timm.scheduler import create_scheduler_v2, scheduler_kwargs
 from timm.utils import ApexScaler, NativeScaler
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 
-from dms_efficientnet import (
-    EffDmsAlgorithm,
-    TeacherStudentDistillNet,
-    TeacherStudentDistillNetDIST,
-    replaece_InvertedResidual_forward,
-    replaece_Mult_forward,
-)
+from dms_efficientnet import EffDmsAlgorithm, TeacherStudentDistillNetDIST
 
 import timm
 
@@ -95,10 +90,7 @@ try:
     has_functorch = True
 except ImportError as e:
     has_functorch = False
-from mmrazor.utils import print_log
 
-replaece_Mult_forward()
-replaece_InvertedResidual_forward()
 DEBUG = os.environ.get("DEBUG", "false") == "true"
 print("DEBUG", DEBUG)
 
@@ -926,11 +918,10 @@ group.add_argument(
 # for dms
 group = parser.add_argument_group("dms")
 group.add_argument("--pruned", type=str, default="")
-group.add_argument("--sub_space", type=str, default="")
 group.add_argument("--reset", type=str, default="false")
 group.add_argument("--target", type=float, default=-1)
-group.add_argument("--distill", type=str, default="false")
-group.add_argument("--latency", type=str, default="false")
+group.add_argument("--teacher", type=str, default="")
+group.add_argument("--teacher_input_image_size", type=int, default=320)
 
 
 def _parse_args():
@@ -1093,7 +1084,7 @@ def main():
     img_size = args.input_size[-1]
     defautl_alg_args = dict(
         mutator_kwargs=dict(
-            type="DMSMutator" if args.latency == "false" else "EffLatencyMutator",
+            type="DMSMutator",
             dtp_mutator_cfg=dict(
                 parse_cfg=dict(
                     demo_input=dict(
@@ -1105,21 +1096,8 @@ def main():
         scheduler_kargs=dict(flops_target=args.target),
     )
 
-    if args.sub_space != "":
-        algorithm = EffDmsAlgorithm(model, **defautl_alg_args)
-        subspace = torch.load(args.sub_space, map_location="cpu")["state_dict"]
-        algorithm.load_state_dict(subspace)
-        model = algorithm.to_static_model(
-            drop_path=args.drop_path, head_dropout=args.head_dropout
-        )
-        print_log("loaded sub space")
     if args.pruned != "":
-        if args.latency == "false":
-            init_fun = EffDmsAlgorithm
-        else:
-            init_fun = EffDmsAlgorithm.init_fold_algo
-
-        algorithm = init_fun(model, **defautl_alg_args)
+        algorithm = EffDmsAlgorithm(model, **defautl_alg_args)
         state_dict = torch.load(args.pruned, map_location="cpu")["state_dict"]
         algorithm.load_state_dict(state_dict, strict=False)
         print_log(algorithm.mutator.info())
@@ -1143,26 +1121,19 @@ def main():
         custom_modules_hooks={},
     )
     print_log(f"final flops: {res}")
-    if args.distill == "True":
-        print_log("init B3 teacher")
-        teacher = timm.create_model("timm/efficientnet_b3.ra2_in1k", pretrained=True)
-        model = TeacherStudentDistillNet(
-            teacher, model, teacher_input_image_size=288, input_image_size=img_size
-        )
-    elif args.distill.startswith("DIST"):
-        print_log("init B3 teacher DIST")
-        if "b7" in args.distill:
-            teacher = timm.create_model("tf_efficientnet_b7.aa_in1k	", pretrained=True)
-        else:
-            teacher = timm.create_model("timm/efficientnet_b4", pretrained=True)
-        loss_weight = float(args.distill.split("_")[-1])
-        print_log(f"dist_loss_weight: {loss_weight}")
+
+    # distillation
+    if args.teacher != "":
+        print_log("Use distillation")
+
+        teacher = timm.create_model(args.teacher, pretrained=True)
+
         model = TeacherStudentDistillNetDIST(
             teacher,
             model,
-            teacher_input_image_size=320,
+            teacher_input_image_size=args.teacher_input_image_size,
             input_image_size=img_size,
-            loss_weight=loss_weight,
+            loss_weight=1,
         )
 
     #############################################################################################################
@@ -1640,14 +1611,14 @@ def train_one_epoch(
                 loss = loss_fn(output, target)
                 ############################################################################################
                 base_model = model if not hasattr(model, "module") else model.module
-                if isinstance(base_model, TeacherStudentDistillNet):
+                if isinstance(base_model, TeacherStudentDistillNetDIST):
                     dist_loss = base_model.compute_ts_distill_loss()
                     if isinstance(dist_loss, tuple):
                         ts_feature_loss, ts_logit_loss = dist_loss
                         dist_loss = ts_feature_loss + ts_logit_loss
                     loss = loss + dist_loss
 
-            ############################################################################################
+                ############################################################################################
 
             if accum_steps > 1:
                 loss /= accum_steps
