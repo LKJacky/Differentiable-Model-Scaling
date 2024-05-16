@@ -18,14 +18,22 @@ class L1MutableChannelUnit(SequentialMutableChannelUnit):
     detail.
     """
 
-    def __init__(self,
-                 num_channels: int,
-                 choice_mode='number',
-                 divisor=1,
-                 min_value=1,
-                 min_ratio=0.9) -> None:
-        super().__init__(num_channels, choice_mode, divisor, min_value,
-                         min_ratio)
+    def __init__(
+        self,
+        num_channels: int,
+        choice_mode='number',
+        divisor=1,
+        min_value=1,
+        min_ratio=0.9,
+        extra_mapping={},
+    ) -> None:
+        super().__init__(
+            num_channels,
+            choice_mode,
+            divisor,
+            min_value,
+            min_ratio,
+            extra_mapping=extra_mapping)
         self.mutable_channel = SimpleMutableChannel(num_channels)
 
     # choices

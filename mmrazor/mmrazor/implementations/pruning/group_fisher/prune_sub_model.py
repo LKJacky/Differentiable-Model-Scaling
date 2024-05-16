@@ -57,6 +57,7 @@ def hacky_init_weights_wrapper(fix_subnet):
 def GroupFisherSubModel(
     algorithm,
     divisor=1,
+    reset_params=False,
     **kargs,
 ):
     """Convert a algorithm(with an architecture) to a static pruned
@@ -71,7 +72,7 @@ def GroupFisherSubModel(
     Returns:
         nn.Module: a static model.
     """
-    # init algorithm
+    # # init algorithm
     if isinstance(algorithm, dict):
         algorithm = MODELS.build(algorithm)  # type: ignore
     assert isinstance(algorithm, BaseAlgorithm)
@@ -81,6 +82,9 @@ def GroupFisherSubModel(
     pruning_structure = algorithm.mutator.choice_template
     print_log('PruneSubModel get pruning structure:')
     print_log(json.dumps(pruning_structure, indent=4))
+
+    if hasattr(algorithm, 'to_static_model'):
+        return algorithm.to_static_model()
 
     # to static model
     fix_mutable = export_fix_subnet(algorithm.architecture)[0]
@@ -102,4 +106,14 @@ def GroupFisherSubModel(
         model.init_cfg = None
         model.init_weights = types.MethodType(
             hacky_init_weights_wrapper(pruning_structure), model)
+    backbone = model.backbone
+    if hasattr(backbone, 'to_static_post_process'):
+        backbone.to_static_post_process()
+    print_log(model)
+    if reset_params:
+        print_log('reset parameters')
+        for module in model.modules():
+            if hasattr(module, 'reset_parameters'):
+                module.reset_parameters()
+
     return model

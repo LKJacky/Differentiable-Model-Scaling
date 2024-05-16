@@ -9,8 +9,10 @@ from typing import List, Union
 
 import torch
 import torch.nn as nn
+from mmcls.models.utils.attention import WindowMSA
 from mmcv.cnn.bricks import Scale
 from mmengine import MMLogger
+from torchvision.models.swin_transformer import ShiftedWindowAttention
 
 from mmrazor.utils import print_log
 from .channel_flow import ChannelTensor
@@ -424,6 +426,24 @@ class BnNode(PassUnionChannelNode):
         return super().__repr__() + '_bn'
 
 
+class LayerNormNode(PassUnionChannelNode):
+
+    def __init__(self, name: str, val: nn.LayerNorm, module_name='') -> None:
+        super().__init__(name, val, module_name)
+
+    @property
+    def _in_channels(self) -> int:
+        val: nn.LayerNorm = self.val
+        return val.normalized_shape[-1]
+
+    @property
+    def _out_channels(self) -> int:
+        return self._in_channels
+
+    def __repr__(self) -> str:
+        return super().__repr__() + '_ln'
+
+
 class GroupNormNode(PassUnionChannelNode):
 
     def __init__(self,
@@ -468,6 +488,9 @@ channel_nodes_mapping = {
         nn.modules.pooling._AdaptiveMaxPoolNd: PassChannelNode,
         Scale: PassChannelNode,
         nn.modules.GroupNorm: GroupNormNode,
+        ShiftedWindowAttention: MixChannelNode,
+        WindowMSA: MixChannelNode,
+        nn.LayerNorm: LayerNormNode,
     },
     'function': {
         torch.add: BindChannelNode,

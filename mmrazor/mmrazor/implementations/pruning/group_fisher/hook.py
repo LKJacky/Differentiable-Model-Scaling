@@ -7,8 +7,6 @@ from mmengine.runner import Runner, save_checkpoint
 from torch import distributed as torch_dist
 
 from mmrazor.models.algorithms import BaseAlgorithm
-from mmrazor.models.mutators.channel_mutator.channel_mutator import \
-    ChannelMutator
 from mmrazor.models.task_modules.demo_inputs import DefaultDemoInput
 from mmrazor.models.task_modules.estimators import ResourceEstimator
 from mmrazor.registry import HOOKS, TASK_UTILS
@@ -25,8 +23,7 @@ def get_model_from_runner(runner):
 
 def is_pruning_algorithm(algorithm):
     """Check whether a model is a pruning algorithm."""
-    return isinstance(algorithm, BaseAlgorithm) \
-             and isinstance(getattr(algorithm, 'mutator', None), ChannelMutator) # noqa
+    return isinstance(algorithm, BaseAlgorithm)
 
 
 @HOOKS.register_module()
@@ -49,16 +46,7 @@ class PruningStructureHook(Hook):
     def show_unit_info(self, algorithm):
         """Show unit information of an algorithm."""
         if is_pruning_algorithm(algorithm):
-            chices = algorithm.mutator.choice_template
-            import json
-            print_log(json.dumps(chices, indent=4))
-
-            for unit in algorithm.mutator.mutable_units:
-                if hasattr(unit, 'importance'):
-                    imp = unit.importance()
-                    print_log(
-                        f'{unit.name}: \t{imp.min().item()}\t{imp.max().item()}'  # noqa
-                    )
+            print_log(algorithm.mutator.info())
 
     @master_only
     def show(self, runner):
@@ -77,6 +65,9 @@ class PruningStructureHook(Hook):
                          outputs) -> None:
         if not self.by_epoch and RuntimeInfo.iter() % self.interval == 0:
             self.show(runner)
+
+    def after_run(self, runner) -> None:
+        self.show(runner)
 
 
 def input_generator_wrapper(model, demp_input: DefaultDemoInput):
@@ -111,7 +102,9 @@ class ResourceInfoHook(Hook):
                  interval=10,
                  resource_type='flops',
                  save_ckpt_thr=[0.5],
-                 early_stop=True) -> None:
+                 early_stop=True,
+                 log_interval=1,
+                 log_by_epoch=True) -> None:
 
         super().__init__()
         if isinstance(demo_input, dict):
@@ -130,6 +123,9 @@ class ResourceInfoHook(Hook):
                     input_shape=tuple(demo_input.input_shape), )))
         self.interval = interval
         self.origin_delta = None
+
+        self.log_interval = log_interval
+        self.log_by_epoch = log_by_epoch
 
     def before_run(self, runner) -> None:
         """Init original_resource."""
@@ -158,15 +154,26 @@ class ResourceInfoHook(Hook):
         if self.early_stop and len(self.save_ckpt_thr) == 0:
             exit()
 
+        if self.log_by_epoch is False and RuntimeInfo().iter(
+        ) % self.log_interval == 0:
+            self.show_resource(runner)
+
     # show info
 
     @master_only
     def after_train_epoch(self, runner) -> None:
         """Check resource after train epoch."""
+        if self.log_by_epoch and RuntimeInfo.epoch() % self.log_interval == 0:
+            self.show_resource(runner)
+
+    def after_run(self, runner) -> None:
+        self.show_resource(runner)
+
+    def show_resource(self, runner):
         model = get_model_from_runner(runner)
         current_delta = self._evaluate(model)[self.resource_type]
         print_log(
-            f'current {self.resource_type}: {current_delta} / {self.origin_delta}'  # noqa
+            f'current {self.resource_type}: {current_delta} / {self.origin_delta} ({current_delta/self.origin_delta})'  # noqa
         )
 
     #

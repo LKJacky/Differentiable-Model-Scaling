@@ -4,7 +4,7 @@
 We only expose some tool functions, rather than all DynamicOps and
 MutableChannelUnits, as They uses a few hacky operations.
 """
-from .tools import (expand_expandable_dynamic_model, expand_static_model,
+from .tools import (expand_expandable_dynamic_model, expand_static_model,ExpandableUnit,
                     make_channel_divisible, to_expandable_model)
 
 __all__ = [
@@ -12,4 +12,5 @@ __all__ = [
     'to_expandable_model',
     'expand_expandable_dynamic_model',
     'expand_static_model',
+    'ExpandableUnit'
 ]

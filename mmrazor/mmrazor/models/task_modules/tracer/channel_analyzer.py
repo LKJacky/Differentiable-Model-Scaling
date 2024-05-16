@@ -18,8 +18,10 @@ from typing import Dict, List, Tuple, Union
 
 import torch
 import torch.nn as nn
+from mmcls.models.utils.attention import WindowMSA
 from mmcv.cnn.bricks import Scale
 from mmengine.model.utils import revert_sync_batchnorm
+from torchvision.models.swin_transformer import ShiftedWindowAttention
 
 from mmrazor.models.architectures.dynamic_ops import DynamicChannelMixin
 from mmrazor.models.mutables.mutable_channel import (
@@ -61,12 +63,15 @@ class ChannelAnalyzer:
         nn.modules.batchnorm._BatchNorm,
         # mmcv
         Scale,
+        WindowMSA,
+        ShiftedWindowAttention,
     )
 
     def __init__(self,
                  demo_input: Union[List, Dict, Tuple,
                                    BaseDemoInput] = (1, 3, 224, 224),
-                 tracer_type='BackwardTracer') -> None:
+                 tracer_type='BackwardTracer',
+                 extra_mapping={}) -> None:
 
         if isinstance(demo_input, dict):
             self.demo_input = TASK_UTILS.build(demo_input)
@@ -93,6 +98,7 @@ class ChannelAnalyzer:
             self.tracer = MMFxTracer(leaf_module=self.default_leaf_modules)
         else:
             raise NotImplementedError()
+        self.extra_mapping = extra_mapping
 
     def analyze(self, model):
         """Tracer the model, and return configs of channel dependency."""
@@ -124,6 +130,8 @@ class ChannelAnalyzer:
 
         channel_graph.forward(self.demo_input.input_shape[1])
         unit_configs = channel_graph.generate_units_config()
+        for unit in unit_configs.values():
+            unit['init_args']['extra_mapping'] = self.extra_mapping
 
         return self._find_mutable_units(model, unit_configs)
 

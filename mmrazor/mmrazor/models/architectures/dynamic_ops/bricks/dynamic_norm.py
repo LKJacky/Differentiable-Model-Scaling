@@ -255,9 +255,10 @@ class DynamicLayerNorm(LayerNorm, DynamicLayerNormMixin):
 
     def _check_input_dim(self, input: Tensor) -> None:
         """Check if input dimension is valid."""
-        if input.dim() != 3:
-            raise ValueError('expected 3D input (got {}D input)'.format(
-                input.dim()))
+        # if input.dim() != 3:
+        #     raise ValueError('expected 3D input (got {}D input)'.format(
+        #         input.dim()))
+        pass
 
 
 class DynamicSyncBatchNorm(nn.SyncBatchNorm, DynamicBatchNormMixin):

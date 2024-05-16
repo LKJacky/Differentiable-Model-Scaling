@@ -30,11 +30,17 @@ class RuntimeInfo():
 
     @classmethod
     def iter(cls):
-        return cls.get_info('iter')
+        try:
+            return cls.get_info('iter')
+        except KeyError:
+            return -1
 
     @classmethod
     def max_iters(cls):
-        return cls.get_info('max_iters')
+        try:
+            return cls.get_info('max_iters')
+        except KeyError:
+            return -1
 
     @classmethod
     def iter_by_epoch(cls):

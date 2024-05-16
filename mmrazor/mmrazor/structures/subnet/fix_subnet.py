@@ -8,24 +8,37 @@ from torch import nn
 from mmrazor.registry import MODELS
 from mmrazor.utils import FixMutable, ValidFixMutable
 from mmrazor.utils.typing import DumpChosen
+from mmrazor.utils import print_log
 
-
-def _dynamic_to_static(model: nn.Module) -> None:
-    # Avoid circular import
+def _dynamic_to_static(model: nn.Module) -> nn.Module:
     from mmrazor.models.architectures.dynamic_ops import DynamicMixin
-
-    def traverse_children(module: nn.Module) -> None:
-        for name, mutable in module.items():
-            if isinstance(mutable, DynamicMixin):
-                module[name] = mutable.to_static_op()
-            if hasattr(mutable, '_modules'):
-                traverse_children(mutable._modules)
-
     if isinstance(model, DynamicMixin):
-        raise RuntimeError('Root model can not be dynamic op.')
+        model = model.to_static_op()
+    elif hasattr(model,'custom_to_static_op'):
+        model=model.custom_to_static_op()
+        print_log(f'call custom to_static_op from {model.__class__}')
+    else:
+        for name, module in model.named_children():
+            model._modules[name] = _dynamic_to_static(module)
+    return model
 
-    if hasattr(model, '_modules'):
-        traverse_children(model._modules)
+
+# def _dynamic_to_static(model: nn.Module) -> None:
+#     # Avoid circular import
+#     from mmrazor.models.architectures.dynamic_ops import DynamicMixin
+
+#     def traverse_children(module: nn.Module) -> None:
+#         for name, mutable in module.items():
+#             if isinstance(mutable, DynamicMixin):
+#                 module[name] = mutable.to_static_op()
+#             if hasattr(mutable, '_modules'):
+#                 traverse_children(mutable._modules)
+
+#     if isinstance(model, DynamicMixin):
+#         raise RuntimeError('Root model can not be dynamic op.')
+
+#     if hasattr(model, '_modules'):
+#         traverse_children(model._modules)
 
 
 def load_fix_subnet(model: nn.Module,

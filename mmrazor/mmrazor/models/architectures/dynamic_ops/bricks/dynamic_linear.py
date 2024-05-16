@@ -44,6 +44,7 @@ class DynamicLinear(nn.Linear, DynamicLinearMixin):
             in_features=module.in_features,
             out_features=module.out_features,
             bias=True if module.bias is not None else False)
+        dynamic_linear.load_state_dict(module.state_dict())
         return dynamic_linear
 
     def forward(self, input: Tensor) -> Tensor:

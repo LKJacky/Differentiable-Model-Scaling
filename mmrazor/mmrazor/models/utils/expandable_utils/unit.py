@@ -6,21 +6,31 @@ from mmengine.model.utils import _BatchNormXd
 from mmrazor.models.mutables import (L1MutableChannelUnit,
                                      MutableChannelContainer)
 from .ops import ExpandableBatchNorm2d, ExpandableConv2d, ExpandLinear
+from mmrazor.registry import MODELS
 
 
+@MODELS.register_module()
 class ExpandableUnit(L1MutableChannelUnit):
     """The units to inplace modules with expandable dynamic ops."""
 
-    def prepare_for_pruning(self, model: nn.Module):
-        self._replace_with_dynamic_ops(
-            model, {
-                nn.Conv2d: ExpandableConv2d,
-                nn.BatchNorm2d: ExpandableBatchNorm2d,
-                _BatchNormXd: ExpandableBatchNorm2d,
-                nn.Linear: ExpandLinear,
-            })
-        self._register_channel_container(model, MutableChannelContainer)
-        self._register_mutable_channel(self.mutable_channel)
+    def __init__(
+        self,
+        num_channels: int,
+        choice_mode='number',
+        divisor=1,
+        min_value=1,
+        min_ratio=0.9,
+        extra_mapping={},
+    ) -> None:
+        super().__init__(num_channels, choice_mode, divisor, min_value,
+                         min_ratio, extra_mapping)
+
+        self.module_mapping = {
+            nn.Conv2d: ExpandableConv2d,
+            nn.BatchNorm2d: ExpandableBatchNorm2d,
+            nn.Linear: ExpandLinear,
+        }
+        self.module_mapping.update(extra_mapping)
 
     def expand(self, num):
         expand_mask = self.mutable_channel.mask.new_zeros([num])
