@@ -11,13 +11,10 @@ In this project, we propose a differentiable topk operator. It searches for **k*
 # Getting Started
 
 We provide the code for our differentiable topk operator and the experiments in the paper.
-We place the core code of the differentiable topk operator in the `dms` folder. The experiments are in the `applications` folder.
+We place the core code of the differentiable topk operator in the `dms` folder. The experiments are in the `applications` folder. Besides, our code is based on [mmrazor](https://github.com/open-mmlab/mmrazor), a powerful model compression toolbox. We provide a modified version of mmrazor in the `mmrazor` folder.
 
-There are two steps to run our experiments:
+There are several steps to prepare the environment and run the codes.
 
-1. run ```pip install -e .``` to install differentiable topk operator.
-2. cd to the `applications` folder and run the experiments you want.
-
-# Main Results
-
-# Cite
+1. run ```pip install -e .``` to install differentiable topk operator and related modules.
+2. run ```cd mmrazor && pip install -e .``` to install the modified version of mmrazor.
+3. cd to the `applications` folder and find the experiment you want to run. Moreover, you also should follow the instructions in each experiment folder.
