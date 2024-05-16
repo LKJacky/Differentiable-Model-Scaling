@@ -1,6 +1,6 @@
 # Differentiable Model Scaling using Differentiable Topk
 
-This repo is the official implementation of "[Differentiable Model Scaling using Differentiable Topk](dms_paper.pdf)".
+This repo is the official implementation of "[Differentiable Model Scaling using Differentiable Topk](https://arxiv.org/abs/2405.07194)".
 
 ## Introduction
 
